@@ -60,7 +60,7 @@ class ExpGui:
             resp = requests.get(self.collectionLink+user_name)
             status_code = resp.status_code
             if status_code == 202:
-                text_box.insert(tkinter.END, "Collection request accepted. Will try again in", self.sleep_duration, "seconds.\n")
+                text_box.insert(tkinter.END, "Collection request accepted. Will try again in " + str(self.sleep_duration) + " seconds.\n")
                 time.sleep(self.sleep_duration)
             elif status_code != 200:
                 text_box.insert(tkinter.END, "Unknown HTTP status code received: ")
@@ -106,7 +106,7 @@ class ExpGui:
                 owned_text = ''
 
         try:
-            with open(user_name+"_seen_json", "r") as file:
+            with open(user_name+"_seen.json", "r") as file:
                 seen += json.load(file)
         except:
             pass
@@ -118,7 +118,7 @@ class ExpGui:
                 if exp not in seen:
                     html.write("<a href=\"https://www.boardgamegeek.com/boardgame/"+exp+"\">"+expName+"</a><br/>\n")
 
-        with open(user_name+"_seen_json", "w") as file:
+        with open(user_name+"_seen.json", "w") as file:
             json.dump(json_exp, file)
 
         subprocess.run(["chromium", user_name+"_expansions_json.html"])
