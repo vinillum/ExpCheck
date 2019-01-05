@@ -5,69 +5,80 @@ import time
 import xml.etree.ElementTree as xml
 import subprocess
 import json
-import tkinter
-import threading
+import wx
 
 
-class ExpGui:
+class ExpGui(wx.Frame):
 
     expansions_per_request = 50
     sleep_duration = 10
     ownedLink = 'https://www.boardgamegeek.com/xmlapi/boardgame/'
     collectionLink = 'https://www.boardgamegeek.com/xmlapi/collection/'
 
-    def __init__(self, gui_master):
-        self.gui_master = gui_master;
-        self.gui_master.title("ExpCheck")
-        tkinter.Label(self.gui_master, text="User Name").grid(row=0, column=0)
-        self.username_entry = tkinter.Entry(self.gui_master)
-        self.username_entry.grid(row=0, column=1)
-        self.own_checkbox = tkinter.IntVar()
-        tkinter.Checkbutton(self.gui_master, text="Own", variable=self.own_checkbox).grid(row=1, column=0)
-        self.preordered_checkbox = tkinter.IntVar()
-        tkinter.Checkbutton(self.gui_master, text="Preordered", variable=self.preordered_checkbox).grid(row=1, column=1)
-        tkinter.Button(self.gui_master, text="Retrieve", command=self.download_data).grid(row=2, column=0, columnspan=2)
+    def __init__(self, *args, **kw):
+        super(ExpGui, self).__init__(*args, **kw)
 
-    def download_data(self):
-        connection_thread = threading.Thread(target=lambda: self.download_data2())
-        connection_thread.start()
+        sizer_flags = wx.EXPAND | wx.ALIGN_CENTER
 
-    def download_data2(self):
+        self.main_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        user_name = self.username_entry.get()
+        user_name_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        user_name_sizer.Add(wx.StaticText(self, label="User Name"))
+        self.user_name_entry = wx.TextCtrl(self)
+        user_name_sizer.Add(self.user_name_entry, sizer_flags, sizer_flags)
+
+        checkbox_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.owned_checkbox = wx.CheckBox(self, label="Own")
+        self.preordered_checkbox = wx.CheckBox(self, label="Preordered")
+        checkbox_sizer.Add(self.owned_checkbox, sizer_flags, sizer_flags)
+        checkbox_sizer.Add(self.preordered_checkbox, sizer_flags, sizer_flags)
+
+        retrieve_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        retrieve_button = wx.Button(self, label="Retrieve")
+        self.Bind(wx.EVT_BUTTON, self.download_data, retrieve_button)
+        retrieve_sizer.Add(retrieve_button, sizer_flags, sizer_flags)
+
+        self.main_sizer.Add(user_name_sizer, sizer_flags, sizer_flags)
+        self.main_sizer.Add(checkbox_sizer, sizer_flags, sizer_flags)
+        self.main_sizer.Add(retrieve_sizer, sizer_flags, sizer_flags)
+
+        self.SetSizer(self.main_sizer)
+
+        self.CreateStatusBar()
+        self.SetStatusText("Ready")
+
+    def download_data(self, event):
+
+        user_name = self.user_name_entry.GetLineText(0)
         if user_name == "":
             return
 
         statuses = []
-        if self.own_checkbox.get():
+        if self.owned_checkbox.GetValue():
             statuses.append("own")
-        if self.preordered_checkbox.get():
+        if self.preordered_checkbox.GetValue():
             statuses.append("preordered")
 
         if len(statuses) == 0:
             return
 
-        text_box = tkinter.Text(self.gui_master)
-        text_box.grid(row=3, column=0, columnspan=2, rowspan=10)
-
         seen = []
         owned = []
         expansions = {}
 
-        text_box.insert(tkinter.END, "Getting collection data\n")
+        self.SetStatusText("Getting collection data\n")
         status_code = 0
         while status_code != 200:
             resp = requests.get(self.collectionLink+user_name)
             status_code = resp.status_code
             if status_code == 202:
-                text_box.insert(tkinter.END, "Collection request accepted. Will try again in " + str(self.sleep_duration) + " seconds.\n")
+                self.SetStatusText("Collection request accepted. Will try again in " + str(self.sleep_duration) + " seconds.\n")
                 time.sleep(self.sleep_duration)
             elif status_code != 200:
-                text_box.insert(tkinter.END, "Unknown HTTP status code received: ")
-                text_box.insert(tkinter.END, status_code)
+                self.SetStatusText("Unknown HTTP status code received: "+str(status_code))
                 exit(1)
 
-        text_box.insert(tkinter.END, "Parsing collection data\n")
+        self.SetStatusText("Parsing collection data\n")
         root = xml.fromstring(resp.text)
         for child in root:
             status = child.find('status')
@@ -90,11 +101,10 @@ class ExpGui:
             owned_appendix += game[0] + ','
             owned_text += '\n\t' + game[1]
             if i % self.expansions_per_request == self.expansions_per_request-1 or i == len(owned)-1:
-                text_box.insert(tkinter.END, "Getting expansions for " + owned_text)
+                self.SetStatusText("Getting expansions: " + str(i) + "/" + str(len(owned)))
                 resp = requests.get(self.ownedLink + owned_appendix)
                 if resp.status_code != 200:
-                    text_box.insert(tkinter.END, "Unknown HTTP status code received: ")
-                    text_box.insert(tkinter.END, resp.status_code)
+                    self.SetStatusText("Unknown HTTP status code received: " + str(resp.status_code))
                     exit(1)
 
                 root = xml.fromstring(resp.text)
@@ -121,9 +131,13 @@ class ExpGui:
         with open(user_name+"_seen.json", "w") as file:
             json.dump(json_exp, file)
 
+        self.SetStatusText("Finished")
+
         subprocess.run(["chromium", user_name+"_expansions_json.html"])
 
 
-gui_master = tkinter.Tk()
-ExpGui(gui_master)
-gui_master.mainloop()
+if __name__ == "__main__":
+    app = wx.App()
+    gui = ExpGui(None, title="Expansion Checker")
+    gui.Show()
+    app.MainLoop()
