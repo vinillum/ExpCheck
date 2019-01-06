@@ -64,12 +64,12 @@ class ExpGui(wx.Frame):
 
         seen = []
         owned = []
-        expansions = {}
+        expansions = []
 
         self.SetStatusText("Getting collection data")
         status_code = 0
         while status_code != 200:
-            resp = requests.get(self.collectionLink+user_name)
+            resp = requests.get(self.collectionLink + user_name)
             status_code = resp.status_code
             if status_code == 202:
                 self.SetStatusText("Collection request accepted. Will try again in " + str(self.sleep_duration) + " seconds.")
@@ -92,6 +92,7 @@ class ExpGui(wx.Frame):
             if consider:
                 owned.append(object_id)
 
+        expansion_names = {}
         owned_appendix = ''
         i = 0
         for game in owned:
@@ -107,9 +108,11 @@ class ExpGui(wx.Frame):
                 root = xml.fromstring(resp.text)
                 for child in root:
                     for expansion in child.findall('boardgameexpansion'):
-                        expansions[expansion.get('objectid')] = expansion.text
-                    for expansion in child.findall('boardgameaccessory'):
-                        expansions[expansion.get('objectid')] = expansion.text
+                        expansions.append(expansion.get('objectid'))
+                        expansion_names[expansion.get('objectid')] = expansion.text
+                    for accessory in child.findall('boardgameaccessory'):
+                        expansions.append(accessory.get('objectid'))
+                        expansion_names[accessory.get('objectid')] = accessory.text
 
                 owned_appendix = ''
 
@@ -121,19 +124,47 @@ class ExpGui(wx.Frame):
         except:
             pass
 
-        json_exp = []
-        with open(user_name + "_expansions.html",  "w") as html:
-            for exp, expName in expansions.items():
-                json_exp.append(exp)
-                if exp not in seen:
-                    html.write("<a href=\"https://www.boardgamegeek.com/boardgame/" + exp + "\">" + expName + "</a><br/>\n")
+        new_exp = []
+        for exp in expansions:
+            if exp not in seen:
+                new_exp.append(exp)
+
+        with open(user_name + "_expansions.html", "w") as html:
+            html.write("<table border=1>")
+            meta_appendix = ''
+            i = 0
+            for exp in new_exp:
+                meta_appendix += exp + ','
+
+                if i % self.expansions_per_request == self.expansions_per_request-1 or i == len(new_exp)-1:
+                    self.SetStatusText("Getting metadata: " + str(i+1) + "/" + str(len(new_exp)))
+                    resp = requests.get(self.ownedLink + meta_appendix)
+                    if resp.status_code != 200:
+                        self.SetStatusText("Unknown HTTP status code received: " + str(resp.status_code))
+                        exit(1)
+
+                    root = xml.fromstring(resp.text)
+                    for child in root:
+                        exp_thumbnail = ''
+                        exp_id = child.get('objectid')
+                        exp_name = expansion_names[exp_id]
+                        for thumbnail in child.findall('thumbnail'):
+                            if thumbnail.text is not None:
+                                exp_thumbnail = thumbnail.text
+                        html.write("<tr><td><img src=\"" + exp_thumbnail + "\"></img></td><td><a href=\"https://www.boardgamegeek.com/boardgame/" + exp_id + "\">" + exp_name + "</a></td></tr>")
+
+                    meta_appendix = ''
+
+                i += 1
+
+            html.write("</table>")
 
         with open(user_name + "_seen.json", "w") as file:
-            json.dump(json_exp, file)
-
-        self.SetStatusText("Finished")
+            json.dump(expansions, file)
 
         webbrowser.open(user_name + "_expansions.html")
+
+        self.SetStatusText("Finished")
 
 
 if __name__ == "__main__":
