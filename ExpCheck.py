@@ -3,9 +3,9 @@
 import requests
 import time
 import xml.etree.ElementTree as xml
-import subprocess
 import json
 import wx
+import webbrowser
 
 
 class ExpGui(wx.Frame):
@@ -66,19 +66,19 @@ class ExpGui(wx.Frame):
         owned = []
         expansions = {}
 
-        self.SetStatusText("Getting collection data\n")
+        self.SetStatusText("Getting collection data")
         status_code = 0
         while status_code != 200:
             resp = requests.get(self.collectionLink+user_name)
             status_code = resp.status_code
             if status_code == 202:
-                self.SetStatusText("Collection request accepted. Will try again in " + str(self.sleep_duration) + " seconds.\n")
+                self.SetStatusText("Collection request accepted. Will try again in " + str(self.sleep_duration) + " seconds.")
                 time.sleep(self.sleep_duration)
             elif status_code != 200:
-                self.SetStatusText("Unknown HTTP status code received: "+str(status_code))
+                self.SetStatusText("Unknown HTTP status code received: " + str(status_code))
                 exit(1)
 
-        self.SetStatusText("Parsing collection data\n")
+        self.SetStatusText("Parsing collection data")
         root = xml.fromstring(resp.text)
         for child in root:
             status = child.find('status')
@@ -87,21 +87,18 @@ class ExpGui(wx.Frame):
                 if status.get(sts) == '1':
                     consider = 1
                     break
+            object_id = child.get('objectid')
+            seen.append(object_id)
             if consider:
-                object_id = child.get('objectid')
-                object_text = child.find('name').text
-                owned.append((object_id, object_text))
-                seen.append(object_id)
+                owned.append(object_id)
 
         owned_appendix = ''
-        owned_text = ''
         i = 0
         for game in owned:
-            i += 1
-            owned_appendix += game[0] + ','
-            owned_text += '\n\t' + game[1]
+            owned_appendix += game + ','
+
             if i % self.expansions_per_request == self.expansions_per_request-1 or i == len(owned)-1:
-                self.SetStatusText("Getting expansions: " + str(i) + "/" + str(len(owned)))
+                self.SetStatusText("Getting expansions: " + str(i+1) + "/" + str(len(owned)))
                 resp = requests.get(self.ownedLink + owned_appendix)
                 if resp.status_code != 200:
                     self.SetStatusText("Unknown HTTP status code received: " + str(resp.status_code))
@@ -113,7 +110,8 @@ class ExpGui(wx.Frame):
                         expansions[expansion.get('objectid')] = expansion.text
 
                 owned_appendix = ''
-                owned_text = ''
+
+            i += 1
 
         try:
             with open(user_name+"_seen.json", "r") as file:
@@ -122,18 +120,18 @@ class ExpGui(wx.Frame):
             pass
 
         json_exp = []
-        with open(user_name+"_expansions_json.html",  "w") as html:
+        with open(user_name + "_expansions.html",  "w") as html:
             for exp, expName in expansions.items():
                 json_exp.append(exp)
                 if exp not in seen:
-                    html.write("<a href=\"https://www.boardgamegeek.com/boardgame/"+exp+"\">"+expName+"</a><br/>\n")
+                    html.write("<a href=\"https://www.boardgamegeek.com/boardgame/" + exp + "\">" + expName + "</a><br/>\n")
 
-        with open(user_name+"_seen.json", "w") as file:
+        with open(user_name + "_seen.json", "w") as file:
             json.dump(json_exp, file)
 
         self.SetStatusText("Finished")
 
-        subprocess.run(["chromium", user_name+"_expansions_json.html"])
+        webbrowser.open(user_name + "_expansions.html")
 
 
 if __name__ == "__main__":
