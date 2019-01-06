@@ -130,34 +130,37 @@ class ExpGui(wx.Frame):
                 new_exp.append(exp)
 
         with open(user_name + "_expansions.html", "w") as html:
-            html.write("<table border=1>")
-            meta_appendix = ''
-            i = 0
-            for exp in new_exp:
-                meta_appendix += exp + ','
+            if len(new_exp) == 0:
+                html.write("No new expansions found.<br/>If you'd like to see all of the expansions again, delete " + user_name + "_seen.json file.")
+            else:
+                html.write("<table border=1>")
+                meta_appendix = ''
+                i = 0
+                for exp in new_exp:
+                    meta_appendix += exp + ','
 
-                if i % self.expansions_per_request == self.expansions_per_request-1 or i == len(new_exp)-1:
-                    self.SetStatusText("Getting metadata: " + str(i+1) + "/" + str(len(new_exp)))
-                    resp = requests.get(self.ownedLink + meta_appendix)
-                    if resp.status_code != 200:
-                        self.SetStatusText("Unknown HTTP status code received: " + str(resp.status_code))
-                        exit(1)
+                    if i % self.expansions_per_request == self.expansions_per_request-1 or i == len(new_exp)-1:
+                        self.SetStatusText("Getting metadata: " + str(i+1) + "/" + str(len(new_exp)))
+                        resp = requests.get(self.ownedLink + meta_appendix)
+                        if resp.status_code != 200:
+                            self.SetStatusText("Unknown HTTP status code received: " + str(resp.status_code))
+                            exit(1)
 
-                    root = xml.fromstring(resp.text)
-                    for child in root:
-                        exp_thumbnail = ''
-                        exp_id = child.get('objectid')
-                        exp_name = expansion_names[exp_id]
-                        for thumbnail in child.findall('thumbnail'):
-                            if thumbnail.text is not None:
-                                exp_thumbnail = thumbnail.text
-                        html.write("<tr><td><img src=\"" + exp_thumbnail + "\"></img></td><td><a href=\"https://www.boardgamegeek.com/boardgame/" + exp_id + "\">" + exp_name + "</a></td></tr>")
+                        root = xml.fromstring(resp.text)
+                        for child in root:
+                            exp_thumbnail = ''
+                            exp_id = child.get('objectid')
+                            exp_name = expansion_names[exp_id]
+                            for thumbnail in child.findall('thumbnail'):
+                                if thumbnail.text is not None:
+                                    exp_thumbnail = thumbnail.text
+                            html.write("<tr><td><img src=\"" + exp_thumbnail + "\"></img></td><td><a href=\"https://www.boardgamegeek.com/boardgame/" + exp_id + "\">" + exp_name + "</a></td></tr>")
 
-                    meta_appendix = ''
+                        meta_appendix = ''
 
-                i += 1
+                    i += 1
 
-            html.write("</table>")
+                html.write("</table>")
 
         with open(user_name + "_seen.json", "w") as file:
             json.dump(expansions, file)
