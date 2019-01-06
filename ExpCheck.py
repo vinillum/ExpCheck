@@ -108,6 +108,8 @@ class ExpGui(wx.Frame):
                 for child in root:
                     for expansion in child.findall('boardgameexpansion'):
                         expansions[expansion.get('objectid')] = expansion.text
+                    for expansion in child.findall('boardgameaccessory'):
+                        expansions[expansion.get('objectid')] = expansion.text
 
                 owned_appendix = ''
 
