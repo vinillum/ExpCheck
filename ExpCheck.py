@@ -33,6 +33,14 @@ class ExpGui(wx.Frame):
         checkbox_sizer.Add(self.owned_checkbox, sizer_flags, sizer_flags)
         checkbox_sizer.Add(self.preordered_checkbox, sizer_flags, sizer_flags)
 
+        exp_type_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.expansions_checkbox = wx.CheckBox(self, label="Expansions")
+        self.accessories_checkbox = wx.CheckBox(self, label="Accessories")
+        self.reimplementations_checkbox = wx.CheckBox(self, label="Reimplementations")
+        exp_type_sizer.Add(self.expansions_checkbox, sizer_flags, sizer_flags)
+        exp_type_sizer.Add(self.accessories_checkbox, sizer_flags, sizer_flags)
+        exp_type_sizer.Add(self.reimplementations_checkbox, sizer_flags, sizer_flags)
+
         retrieve_sizer = wx.BoxSizer(wx.HORIZONTAL)
         retrieve_button = wx.Button(self, label="Retrieve")
         self.Bind(wx.EVT_BUTTON, self.download_data, retrieve_button)
@@ -40,6 +48,7 @@ class ExpGui(wx.Frame):
 
         self.main_sizer.Add(user_name_sizer, sizer_flags, sizer_flags)
         self.main_sizer.Add(checkbox_sizer, sizer_flags, sizer_flags)
+        self.main_sizer.Add(exp_type_sizer, sizer_flags, sizer_flags)
         self.main_sizer.Add(retrieve_sizer, sizer_flags, sizer_flags)
 
         self.SetSizer(self.main_sizer)
@@ -51,6 +60,7 @@ class ExpGui(wx.Frame):
 
         user_name = self.user_name_entry.GetLineText(0)
         if user_name == "":
+            self.SetStatusText("Missing user name")
             return
 
         statuses = []
@@ -59,7 +69,20 @@ class ExpGui(wx.Frame):
         if self.preordered_checkbox.GetValue():
             statuses.append("preordered")
 
+        types = []
+        if self.expansions_checkbox.GetValue():
+            types.append('boardgameexpansion')
+        if self.accessories_checkbox.GetValue():
+            types.append('boardgameaccessory')
+        if self.reimplementations_checkbox.GetValue():
+            types.append('boardgameimplementation')
+
         if len(statuses) == 0:
+            self.SetStatusText("Owned/Preordered not selected")
+            return
+
+        if len(types) == 0:
+            self.SetStatusText("Expansions/Accessories/Reimplementations not selected")
             return
 
         seen = []
@@ -75,8 +98,8 @@ class ExpGui(wx.Frame):
                 self.SetStatusText("Collection request accepted. Will try again in " + str(self.sleep_duration) + " seconds.")
                 time.sleep(self.sleep_duration)
             elif status_code != 200:
-                self.SetStatusText("Unknown HTTP status code received: " + str(status_code))
-                exit(1)
+                self.SetStatusText("Unknown HTTP status code received: " + str(status_code) + ". Try again later.")
+                return
 
         self.SetStatusText("Parsing collection data")
         root = xml.fromstring(resp.text)
@@ -102,12 +125,12 @@ class ExpGui(wx.Frame):
                 self.SetStatusText("Getting expansions: " + str(i+1) + "/" + str(len(owned)))
                 resp = requests.get(self.ownedLink + owned_appendix)
                 if resp.status_code != 200:
-                    self.SetStatusText("Unknown HTTP status code received: " + str(resp.status_code))
-                    exit(1)
+                    self.SetStatusText("Unknown HTTP status code received: " + str(resp.status_code) + ". Try again later.")
+                    return
 
                 root = xml.fromstring(resp.text)
                 for child in root:
-                    for item in ['boardgameexpansion','boardgameaccessory','boardgameimplementation']:
+                    for item in types:
                         for expansion in child.findall(item):
                             expansions.append(expansion.get('objectid'))
                             expansion_names[expansion.get('objectid')] = expansion.text
@@ -141,8 +164,8 @@ class ExpGui(wx.Frame):
                         self.SetStatusText("Getting metadata: " + str(i+1) + "/" + str(len(new_exp)))
                         resp = requests.get(self.ownedLink + meta_appendix)
                         if resp.status_code != 200:
-                            self.SetStatusText("Unknown HTTP status code received: " + str(resp.status_code))
-                            exit(1)
+                            self.SetStatusText("Unknown HTTP status code received: " + str(resp.status_code) + ". Try again later.")
+                            return
 
                         root = xml.fromstring(resp.text)
                         for child in root:
