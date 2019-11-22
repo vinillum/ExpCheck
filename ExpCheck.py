@@ -48,6 +48,7 @@ class ExpGui(wx.Frame):
 
         retrieve_sizer = wx.BoxSizer(wx.HORIZONTAL)
         retrieve_button = wx.Button(self, label="Retrieve")
+        retrieve_button.SetDefault()
         self.Bind(wx.EVT_BUTTON, self.download_data, retrieve_button)
         retrieve_sizer.Add(retrieve_button, sizer_flags, sizer_flags)
 
