@@ -6,6 +6,18 @@ import xml.etree.ElementTree as xml
 import json
 import wx
 import webbrowser
+from os import listdir
+from os.path import isfile
+import re
+
+
+def get_last_user():
+    for f in listdir('.'):
+        if isfile(f):
+            z = re.match('^(.*?)_seen\\.json$', f)
+            if z:
+                return z.groups()[0]
+    return ''
 
 
 class ExpGui(wx.Frame):
@@ -23,17 +35,18 @@ class ExpGui(wx.Frame):
         self.main_sizer = wx.BoxSizer(wx.VERTICAL)
 
         user_name_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        user_name_sizer.Add(wx.StaticText(self, label="User Name"))
+        user_name_sizer.Add(wx.StaticText(self, label="User Name"), 1, sizer_flags)
         self.user_name_entry = wx.TextCtrl(self)
-        user_name_sizer.Add(self.user_name_entry, sizer_flags, sizer_flags)
+        self.user_name_entry.SetValue(get_last_user())
+        user_name_sizer.Add(self.user_name_entry, 1, sizer_flags)
 
         checkbox_sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.owned_checkbox = wx.CheckBox(self, label="Own")
         self.owned_checkbox.SetValue(True)
         self.preordered_checkbox = wx.CheckBox(self, label="Preordered")
         self.preordered_checkbox.SetValue(True)
-        checkbox_sizer.Add(self.owned_checkbox, sizer_flags, sizer_flags)
-        checkbox_sizer.Add(self.preordered_checkbox, sizer_flags, sizer_flags)
+        checkbox_sizer.Add(self.owned_checkbox, 1, sizer_flags)
+        checkbox_sizer.Add(self.preordered_checkbox, 1, sizer_flags)
 
         exp_type_sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.expansions_checkbox = wx.CheckBox(self, label="Expansions")
@@ -42,20 +55,23 @@ class ExpGui(wx.Frame):
         self.accessories_checkbox.SetValue(True)
         self.reimplementations_checkbox = wx.CheckBox(self, label="Reimplementations")
         self.reimplementations_checkbox.SetValue(True)
-        exp_type_sizer.Add(self.expansions_checkbox, sizer_flags, sizer_flags)
-        exp_type_sizer.Add(self.accessories_checkbox, sizer_flags, sizer_flags)
-        exp_type_sizer.Add(self.reimplementations_checkbox, sizer_flags, sizer_flags)
+        self.integrations_checkbox = wx.CheckBox(self, label="Integrations")
+        self.integrations_checkbox.SetValue(True)
+        exp_type_sizer.Add(self.expansions_checkbox, 1, sizer_flags)
+        exp_type_sizer.Add(self.accessories_checkbox, 1, sizer_flags)
+        exp_type_sizer.Add(self.reimplementations_checkbox, 1, sizer_flags)
+        exp_type_sizer.Add(self.integrations_checkbox, 1, sizer_flags)
 
         retrieve_sizer = wx.BoxSizer(wx.HORIZONTAL)
         retrieve_button = wx.Button(self, label="Retrieve")
         retrieve_button.SetDefault()
         self.Bind(wx.EVT_BUTTON, self.download_data, retrieve_button)
-        retrieve_sizer.Add(retrieve_button, sizer_flags, sizer_flags)
+        retrieve_sizer.Add(retrieve_button, 1, sizer_flags)
 
-        self.main_sizer.Add(user_name_sizer, sizer_flags, sizer_flags)
-        self.main_sizer.Add(checkbox_sizer, sizer_flags, sizer_flags)
-        self.main_sizer.Add(exp_type_sizer, sizer_flags, sizer_flags)
-        self.main_sizer.Add(retrieve_sizer, sizer_flags, sizer_flags)
+        self.main_sizer.Add(user_name_sizer, 1, sizer_flags)
+        self.main_sizer.Add(checkbox_sizer, 1, sizer_flags)
+        self.main_sizer.Add(exp_type_sizer, 1, sizer_flags)
+        self.main_sizer.Add(retrieve_sizer, 1, sizer_flags)
 
         self.SetSizer(self.main_sizer)
 
@@ -82,13 +98,15 @@ class ExpGui(wx.Frame):
             types.append('boardgameaccessory')
         if self.reimplementations_checkbox.GetValue():
             types.append('boardgameimplementation')
+        if self.integrations_checkbox.GetValue():
+            types.append('boardgameintegration')
 
         if len(statuses) == 0:
             self.SetStatusText("Owned/Preordered not selected")
             return
 
         if len(types) == 0:
-            self.SetStatusText("Expansions/Accessories/Reimplementations not selected")
+            self.SetStatusText("Expansions/Accessories/Reimplementations/Integrations not selected")
             return
 
         seen = []
@@ -157,10 +175,11 @@ class ExpGui(wx.Frame):
                 new_exp.append(exp)
 
         with open(user_name + "_expansions.html", "w") as html:
+            html.write("""<html><head><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.5.3/dist/css/bootstrap.min.css" integrity="sha384-TX8t27EcRE3e/ihU7zmQxVncDAy5uIKz4rEkgIXeMed4M0jlfIDPvg6uqKI2xXr2" crossorigin="anonymous"></head><body><div class="jumbotron text-center"><h1>News</h1><p>List of new expansions, reimplementations and accessories for your games</p></div>""")
             if len(new_exp) == 0:
-                html.write("No new expansions found.<br/>If you'd like to see all of the expansions again, delete " + user_name + "_seen.json file.")
+                html.write("<div class='container'><div class='row'><div class='col-12'>No new expansions found.<br/>If you'd like to see all of the expansions again, delete <b>" + user_name + "_seen.json</b> file.</div></div></div>")
             else:
-                html.write("<table border=1>")
+                html.write("<div class='container'>")
                 meta_appendix = ''
                 i = 0
                 for exp in new_exp:
@@ -181,13 +200,13 @@ class ExpGui(wx.Frame):
                             for thumbnail in child.findall('thumbnail'):
                                 if thumbnail.text is not None:
                                     exp_thumbnail = thumbnail.text
-                            html.write("<tr><td><img src=\"" + exp_thumbnail + "\"></img></td><td><a href=\"https://www.boardgamegeek.com/boardgame/" + exp_id + "\">" + exp_name + "</a></td></tr>")
+                            html.write("<div class='row'><div class='col-3'><img src=\"" + exp_thumbnail + "\"></img></div><div class='col-9'><a href=\"https://www.boardgamegeek.com/boardgame/" + exp_id + "\">" + exp_name + "</a></div></div>")
 
                         meta_appendix = ''
 
                     i += 1
 
-                html.write("</table>")
+                html.write("</div>")
 
         with open(user_name + "_seen.json", "w") as file:
             json.dump(expansions, file)
